@@ -1,0 +1,184 @@
+\PassOptionsToPackage{usenames,dvipsnames}{color}
+\documentclass[11pt]{beamer}
+\usetheme{Copenhagen}
+\usepackage[utf8x]{inputenc}
+\usepackage{color}
+\usepackage{ucs}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{array}
+\usepackage{booktabs}
+%\usepackage{changepage}
+%\usepackage{subcaption}
+\usepackage{graphicx}
+\usepackage{geometry}
+%\usepackage{forloop}
+\usepackage{pgffor}
+%\usepackage{beamerthemesplit}
+%\usepackage{comment}
+%\usepackage[outdir=./]{epstopdf}
+\usepackage{epstopdf}
+%\usepackage{wrapfig}
+%\usepackage{xintexpr}
+%\usepackage[export]{adjustbox}
+%\usepackage[orientation=landscape,size=custom,width=16,height=9,scale=0.5,debug]{beamerposter}
+%\date{} 
+%\subject{}
+\usepackage{multicol}
+\usepackage{hyperref}
+
+\setbeamertemplate{navigation symbols}{}
+\useoutertheme{infolines}
+
+
+\newcommand\tab[1][1cm]{\hspace*{#1}}
+\newcommand{\rulesep}{\unskip\ \vrule\ }
+\newcommand{\backupbegin}{
+	\newcounter{finalframe}
+	\setcounter{finalframe}{\value{framenumber}}
+}
+
+
+%\newcommand{\febs}{193, 87, 88, 85, 80, 81, 79, 89}
+\usepackage{pdftexcmds}
+\makeatletter
+%\newcommand\pdfstrcmp[2] {\pdf@strcmp{#1}{#2}}
+\newcommand{\group}{""}
+\newcommand{\plot}{""}
+
+
+\newenvironment{changemargin}[2]{% 
+\begin{list}{}{% 
+\setlength{\topsep}{0pt}% 
+\setlength{\leftmargin}{#1}% 
+\setlength{\rightmargin}{#2}% 
+\setlength{\listparindent}{\parindent}% 
+\setlength{\itemindent}{\parindent}% 
+\setlength{\parsep}{\parskip}% 
+}% 
+\item[]}{\end{list}} 
+
+\makeatletter
+\newenvironment{withoutheadline}{
+\setbeamertemplate{headline}[default]%evidently this only works for individual frames
+\def\beamer@entrycode{\vspace*{-\headheight}}
+}{}
+\makeatother
+
+\makeatletter
+\def\instring#1#2{TT\fi\begingroup
+\edef\x{\endgroup\noexpand\in@{#1}{#2}}\x\ifin@}
+\makeatother
+
+\setbeamertemplate{headline}
+{
+}
+
+\input{RunsAndFEBIDs.tex}
+
+\begin{document}
+
+
+%\graphicspath{.}
+%\epstopdfsetup{outdir=./}
+
+%\newcommand\runs}{
+\section*{}
+\begin{frame}{Single PE}
+        \begin{multicols}{3} 
+               \tableofcontents
+        \end{multicols}
+\end{frame}
+
+\section{Gain plots}
+\begin{frame}
+        \Huge{Gain Plots}
+\end{frame}
+
+\foreach \feb in \febs{
+                \subsection{FEB \feb}
+
+                 \begin{frame}{Module \feb }
+                        \centering
+                        \foreach \chan in {0, 1, ..., 14}{
+                                \IfFileExists{../All_results_start_run\firstrun/gain_vs_bias_voltage_start_run\firstrun/FEB_\feb_channel_\chan.png}{%
+                                        \includegraphics[width=0.19\linewidth]{../All_results_start_run\firstrun/gain_vs_bias_voltage_start_run\firstrun/FEB_\feb_channel_\chan}%   
+                                }{
+                                        \includegraphics[width=0.19\linewidth]{../All_results_start_run\firstrun/raw_gain_vs_bias_voltage_start_run\firstrun/FEB_\feb_channel_\chan}% 
+                                }   
+                        }
+                \end{frame}
+
+                \begin{frame}{Module \feb~cont.}
+                        \centering
+                        \foreach \chan in {15, 16, ..., 31}{
+                                \IfFileExists{../All_results_start_run\firstrun/gain_vs_bias_voltage_start_run\firstrun/FEB_\feb_channel_\chan.png}{%
+                                        \includegraphics[width=0.19\linewidth]{../All_results_start_run\firstrun/gain_vs_bias_voltage_start_run\firstrun/FEB_\feb_channel_\chan}%   
+                                }{
+                                        \includegraphics[width=0.19\linewidth]{../All_results_start_run\firstrun/raw_gain_vs_bias_voltage_start_run\firstrun/FEB_\feb_channel_\chan}% 
+                                }    
+                        }
+                \end{frame}
+
+}
+
+\section{Single PE ADC Plots}
+
+\begin{frame}
+        \Huge{Single PE ADC Plots}
+\end{frame}
+
+
+\foreach \voltage in \voltages{
+         \subsection{Voltage \voltage}
+
+	\foreach \feb in \febs{
+                \subsubsection{FEB \feb}
+
+                \begin{frame}{Voltage \voltage}
+                        \centering
+                        \includegraphics[width=0.9\linewidth]{../All_results_start_run\firstrun/fitted_adc_histos/fitted_adc_histos_voltage\voltage/gain_vs_channel\feb}%
+                \end{frame}
+
+ 		\begin{frame}{Voltage \voltage -- Module \feb }
+ 			\centering
+ 			\foreach \chan in {0, 1, ..., 14}{
+ 				\includegraphics[width=0.19\linewidth]{../All_results_start_run\firstrun/fitted_adc_histos/fitted_adc_histos_voltage\voltage/FEB_\feb_channel_\chan_ADC_histo}%
+ 			}
+ 		\end{frame}
+ 		\begin{frame}{Voltage \voltage -- Module \feb~cont.}
+ 			\centering
+ 			\foreach \chan in {15, 16, ..., 31}{
+ 				%\includegraphics[width=0.19\linewidth]{\voltage/adc_feb\feb_chan\chan}%
+ 				\includegraphics[width=0.19\linewidth]{../All_results_start_run\firstrun/fitted_adc_histos/fitted_adc_histos_voltage\voltage/FEB_\feb_channel_\chan_ADC_histo}%
+ 			}
+ 		\end{frame}
+ 	}
+
+         
+%can uncomment the rest of this if we want to add in the chanel by channel adc distributions.
+%
+ %    \foreach \feb in {193, 87, 88, 85, 81, 80, 79, 89}{
+ % %       \begin{frame}{FEB \feb }
+  %       \centering
+  %       \foreach \chan in {0, 1, ..., 14}{
+  %                \includegraphics[width=0.19\linewidth]{../run\run/adc_feb\feb_chan\chan}%
+  %       }                 
+  %       \end{frame}
+  %       \begin{frame}{FEB \feb }
+  %       \centering
+  %       \foreach \chan in {15, 16, ..., 31}{
+  %                %\includegraphics[width=0.19\linewidth]{\run/adc_feb\feb_chan\chan}%
+  %              \includegraphics[height=0.2\textheight]{../run\run/adc_feb\feb_chan\chan}%
+  %       }
+  %       \end{frame}
+  %  }        
+}   
+
+
+
+
+
+
+\end{document}

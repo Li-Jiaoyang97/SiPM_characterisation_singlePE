@@ -1,0 +1,6 @@
+echo $MRB_BUILDDIR
+cd   $MRB_BUILDDIR
+
+make install
+cd
+cd jiaoyang/single_PE_search

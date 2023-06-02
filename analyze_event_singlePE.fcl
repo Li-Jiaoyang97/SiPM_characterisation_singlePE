@@ -1,0 +1,63 @@
+process_name: SinglePEFit
+
+services: {
+  TFileService: { fileName: "SinglePEFit.root" }
+}
+
+#source is a root file
+source:
+{
+  module_type: RootInput
+  maxEvents:   100000000        # Number of events to create
+}
+
+outputs:
+{
+ out1: {
+  module_type: FileDumperOutput
+  wantProductFullClassName:     true
+  wantProductFriendlyClassName: false
+ }
+}
+
+physics:
+{
+
+ producers:{}
+
+ filters:{}
+
+ analyzers:{
+
+   dumpall: {
+     module_type: CRTSinglePEAna
+     include_berncrt: true
+     crt_keepall: false
+     verbose: false
+     store_basic_info: true
+     include_timing: true
+     bias_voltage: 114
+     store_adc_raw_histo: true
+     fit_the_adc: true
+     save_histo_to_pdf: true
+     photo_dump_dir: "./fitted_adc_histos/"
+     
+     input_FEB_id_manually: false
+     #FEBModules_vec_manual_input: [153, 156, 157, 158, 159, 181, 182] # if you want to manually put FEB number in, put here and turn input_FEB_id_manually to be true. 
+     
+     input_fit_range_manually: false
+     #fit_range_vec: [0, 800, 200] # if you want to manually put fit range, put as [min, max, bins], and set input_fit_range_manually to be true.
+   }
+ }
+
+ #define the output stream, there could be more than one if using filters 
+ stream1:  [ out1 ]
+ ana: [ dumpall ]
+
+ #end_paths is a keyword and contains the paths that do not modify the art::Event, 
+ #ie analyzers and output streams.  these all run simultaneously
+ end_paths:     [ ana ]  
+}
+
+physics.analyzers.dumpall.bias_voltage: 230
+physics.analyzers.dumpall.photo_dump_dir: "./fitted_adc_histos_voltage230/" 
