@@ -1,68 +1,93 @@
-TChain * CreateChainFromList_opt(TString ListFileName, std::string ChainName, bool DoCheck);
-void define_plot_style();
-float target_voltage_cal(float slope, float offset, float gain);
+#include "functions.cc"
 
-void plot_gain_vs_voltage(TString FileList="./List_of_files", TString savedir="./final_plots", TString savedir2="./raw_final_plots", float target_gain=68.64){	
-	gSystem->Exec("rm "+savedir+"/*");
-	gSystem->Exec("rm "+savedir2+"/*");
+void plot_gain_vs_voltage(TString FileList="./List_of_files", TString savedir="./gain_vs_bias_voltage", TString savedir2="./raw_gain_vs_bias_voltage", float targeted_bias_setting=180., float targeted_preAmp=60.){	
+	gSystem->Exec("rm "+savedir+"*");
+	gSystem->Exec("rm "+savedir2+"*");
 	define_plot_style();
 	TChain * chain = CreateChainFromList_opt(FileList, "dumpall/CRTFitInfoTree", false);
 
-	Int_t bias_voltage, febid, channel;
-	Float_t gain, gain_err, chisqr, ndf;
+	Int_t bias_setting, febid, channel;
+	Float_t eff_gain, eff_gain_err, chisqr, ndf;
 
-	chain->SetBranchAddress("fbias_voltage",&bias_voltage);
+	chain->SetBranchAddress("fbias_setting",&bias_setting);
 	chain->SetBranchAddress("FEB_id",  &febid);
 	chain->SetBranchAddress("channel", &channel);
-	chain->SetBranchAddress("gain", &gain);
-	chain->SetBranchAddress("gain_err", &gain_err);
+	chain->SetBranchAddress("eff_gain", &eff_gain);
+	chain->SetBranchAddress("eff_gain_err", &eff_gain_err);
 	chain->SetBranchAddress("chisqr", &chisqr);
 	chain->SetBranchAddress("ndf", &ndf);
 
 	auto nEnt = chain->GetEntries();
 	std::cout<<"Need to loop over "<<nEnt<<" entries."<<std::endl;
 	std::vector<int> FEB_vec;
+	std::vector<int> bias_setting_save_vec;
 	for(auto i=0; i<nEnt; i++){
 	  chain->GetEntry(i);
 	  FEB_vec.push_back(febid);
+	  bias_setting_save_vec.push_back(bias_setting);
 	}
 
 	std::sort(FEB_vec.begin(), FEB_vec.end());
-  FEB_vec.erase(std::unique(FEB_vec.begin(), FEB_vec.end()), FEB_vec.end()); // Remove duplicate values from vector
+	FEB_vec.erase(std::unique(FEB_vec.begin(), FEB_vec.end()), FEB_vec.end()); // Remove duplicate values from vector
 
-	//int counter =0;
+	std::sort(bias_setting_save_vec.begin(), bias_setting_save_vec.end());
+	bias_setting_save_vec.erase(std::unique(bias_setting_save_vec.begin(), bias_setting_save_vec.end()), bias_setting_save_vec.end()); // Remove duplicate values from vector
+
+	TH1F * histo_slope_effective_vs_bias = new TH1F("histo_slope_effective_vs_bias", "", 20, 0, 50);
+	std::vector<TH1F*> histo_eff_gain_vec = declare_histo_vec("h_effctive_gain", bias_setting_save_vec.size(), bias_setting_save_vec, 30, 30, 120);
+	std::map<int,int> potential_dead_channel_map;
+
+	// start to loop.
 	for (int iFEB=0; iFEB<FEB_vec.size(); iFEB++){ // loop through the FEBs FEB_vec.size()
 		ofstream outfile;
-		outfile.open(Form("./target_voltage_FEB%i.txt", FEB_vec[iFEB]));
-		outfile<<"Channel \t targeted_voltage"<<std::endl;
+		outfile.open(Form("./FEB%i.txt", FEB_vec[iFEB]));
+		outfile<<"Channel \t fitted_effective_gain \t fitted_offset"<<std::endl;
 
-		//if(FEB_vec[iFEB]!=181) continue;
+		ofstream outfile2;
+		outfile2.open(Form("./target_bias_setting_FEB%i.txt", FEB_vec[iFEB]));
+		outfile2<<"Channel \t bias_setting"<<std::endl;
+
+		ofstream outfile3;
+		outfile3.open(Form("./effective_gain_with_target_bias_setting_FEB%i.txt", FEB_vec[iFEB]));
+		//outfile3<<"Channel \t effective_gain"<<std::endl;
+		// vectors to save all slope 
+		std::vector<double> slope_per_channel_vec(32);
+		std::vector<double> slope_err_per_channel_vec(32);
+		std::vector<double> channel_ids(32);
+
+		//int channel_print_count(0);
 		for (int iChannel = 0; iChannel < 32; iChannel++){
 			
 			std::vector<float> bias_voltage_vec;
-			std::vector<float> gain_vec;
-			std::vector<float> gain_err_vec;
+			std::vector<float> eff_gain_vec;
+			std::vector<float> eff_gain_err_vec;
 
-			std::vector<float> gain_vec_raw;
-			std::vector<float> gain_err_vec_raw;
+			std::vector<float> eff_gain_vec_raw;
+			std::vector<float> eff_gain_err_vec_raw;
 			std::vector<float> bias_voltage_vec_raw;
 
 			bool doFitPlot=false;
 			for(auto i=0; i<nEnt; i++){
 				chain->GetEntry(i);
-				if (febid== FEB_vec[iFEB] && channel==iChannel ){//
-					bias_voltage_vec_raw.push_back(bias_voltage);
-					gain_vec_raw.push_back(gain);
-					gain_err_vec_raw.push_back(gain_err);
+				if (febid== FEB_vec[iFEB] && channel==iChannel ){
+					bias_voltage_vec_raw.push_back(bias_setting);
+					//bias_voltage_vec_raw.push_back(convertBiasSettingtoVoltage(bias_setting));
+					eff_gain_vec_raw.push_back(eff_gain);
+					eff_gain_err_vec_raw.push_back(eff_gain_err);
 					
-					// sanity check for the gain value makes sense or not.
+					// sanity check for the eff_gain value makes sense or not.
 					//if ( (ndf!=0 && chisqr/ndf < 100.0) || (ndf==0) ){
-						float targeted_gain=0.4*bias_voltage;
-						if (gain<targeted_gain+20 && gain>targeted_gain-20){
-							bias_voltage_vec.push_back(bias_voltage);
-							gain_vec.push_back(gain);
-							gain_err_vec.push_back(gain_err);
+						float targeted_eff_gain=0.4*bias_setting;
+						if (eff_gain<targeted_eff_gain+25 && eff_gain>targeted_eff_gain-25){
+							bias_voltage_vec.push_back(bias_setting);
+							//bias_voltage_vec.push_back(convertBiasSettingtoVoltage(bias_setting));
+							eff_gain_vec.push_back(eff_gain);
+							eff_gain_err_vec.push_back(eff_gain_err);
 							doFitPlot=true;
+
+    					std::vector<int>::iterator itr = std::find(bias_setting_save_vec.begin(), bias_setting_save_vec.end(), bias_setting);
+    					int ibias = std::distance(std::begin(bias_setting_save_vec), itr); // find the channel with the maximum hits. 
+    					histo_eff_gain_vec.at(ibias)->Fill(eff_gain);
 						}
 					//}
 				}
@@ -70,69 +95,68 @@ void plot_gain_vs_voltage(TString FileList="./List_of_files", TString savedir=".
 
 			TString histo_title= Form("FEB: %i, channel: %i", FEB_vec[iFEB], iChannel);
 			auto c2 = new TCanvas("c2","",200,10,800,500);
-			TGraphErrors* gr_mean2 = new TGraphErrors(bias_voltage_vec_raw.size(), &(bias_voltage_vec_raw[0]), &(gain_vec_raw[0]), 0, &(gain_err_vec_raw[0]));
+			TGraphErrors* gr_mean2 = new TGraphErrors(bias_voltage_vec_raw.size(), &(bias_voltage_vec_raw[0]), &(eff_gain_vec_raw[0]), 0, &(eff_gain_err_vec_raw[0]));
 
-			gr_mean2->SetTitle(histo_title);  
-			gr_mean2->GetXaxis()->SetTitle("Bias Voltage");
-			gr_mean2->GetYaxis()->SetTitle("Fitted Gain Value");
+			gr_mean2->SetTitle();  
+			gr_mean2->SetTitle(histo_title+"; Bias; Fitted effective gain");
 			
 			gr_mean2->Draw("AP"); 
-			gr_mean2->GetYaxis()->SetRangeUser(40, 170);
 
 			TPaveText* pt = new TPaveText(0.15, 0.8, 0.65, 0.9, "NDC");
 			pt->SetFillColor(0);
 			pt->SetTextAlign(22);
 			pt->SetTextSize(0.06);
 			pt->SetTextColor(kRed);
-			pt->AddText("Raw gain: "+histo_title);
+			pt->AddText("Raw effective gain: "+histo_title);
 			pt->Draw();
 
 			gSystem->Exec("mkdir -p "+savedir2);
-			c2->SaveAs(Form(savedir2+"/FEB_%i_channel_%i.pdf", FEB_vec[iFEB], iChannel));
+			//c2->SaveAs(Form(savedir2+"FEB_%i_channel_%i.pdf", FEB_vec[iFEB], iChannel));
 			c2->SaveAs(Form(savedir2+"/FEB_%i_channel_%i.png", FEB_vec[iFEB], iChannel));
+			delete c2;
 
 			if (doFitPlot){
 				
 				/*bool isFirstErased=false;
 				int nErased=0;
-				for (int i=0; i<gain_vec.size()-1; i++){
-					float thisGain=gain_vec[i];
-					float nextGain=gain_vec[i+1];
-					if(i==0 && thisGain>nextGain){
+				for (int i=0; i<eff_gain_vec.size()-1; i++){
+					float thiseff_Gain=eff_gain_vec[i];
+					float nexteff_Gain=eff_gain_vec[i+1];
+					if(i==0 && thiseff_Gain>nexteff_Gain){
 						bias_voltage_vec_new.erase(bias_voltage_vec_new.begin());
-						gain_vec_new.erase(gain_vec_new.begin());
-						gain_err_vec_new.erase(gain_err_vec_new.begin());
+						eff_gain_vec_new.erase(eff_gain_vec_new.begin());
+						eff_gain_err_vec_new.erase(eff_gain_err_vec_new.begin());
 						nErased++;
-					}else if(thisGain>nextGain){
+					}else if(thiseff_Gain>nexteff_Gain){
 						bias_voltage_vec_new.erase(bias_voltage_vec_new.begin()+i+1-nErased);
-						gain_vec_new.erase(gain_vec_new.begin()+i+1-nErased);
-						gain_err_vec_new.erase(gain_err_vec_new.begin()+i+1-nErased);
+						eff_gain_vec_new.erase(eff_gain_vec_new.begin()+i+1-nErased);
+						eff_gain_err_vec_new.erase(eff_gain_err_vec_new.begin()+i+1-nErased);
 						nErased++;
-						if (i<gain_vec.size()-2) {
-							nextGain=gain_vec[i+2];
-							if(thisGain>nextGain){
-								//std::cout<<"3! "<<nextGain<<", "<<gain_vec_new.at(i+2-nErased);
+						if (i<eff_gain_vec.size()-2) {
+							nexteff_Gain=eff_gain_vec[i+2];
+							if(thiseff_Gain>nexteff_Gain){
+								//std::cout<<"3! "<<nexteff_Gain<<", "<<eff_gain_vec_new.at(i+2-nErased);
 								bias_voltage_vec_new.erase(bias_voltage_vec_new.begin()+i+2-nErased);
-								gain_vec_new.erase(gain_vec_new.begin()+i+2-nErased);
-								gain_err_vec_new.erase(gain_err_vec_new.begin()+i+2-nErased);
+								eff_gain_vec_new.erase(eff_gain_vec_new.begin()+i+2-nErased);
+								eff_gain_err_vec_new.erase(eff_gain_err_vec_new.begin()+i+2-nErased);
 							}	
 						}
 					}
 				}*/
 
-				/*std::cout<<"Print new gain vector:"<<std::endl;
-				for(int i=0; i<gain_vec_new.size();i++){
-					std::cout<<gain_vec_new.at(i)<<", ";
+				/*std::cout<<"Print new eff_gain vector:"<<std::endl;
+				for(int i=0; i<eff_gain_vec_new.size();i++){
+					std::cout<<eff_gain_vec_new.at(i)<<", ";
 				}
 				std::cout<<std::endl;*/
 
 
 				// Save the plots without abondoning points.
 				auto c1 = new TCanvas("c1","",200,10,800,500);
-				TGraphErrors* gr_mean = new TGraphErrors(bias_voltage_vec.size(), &(bias_voltage_vec[0]), &(gain_vec[0]), 0, &(gain_err_vec[0]));
+				TGraphErrors* gr_mean = new TGraphErrors(bias_voltage_vec.size(), &(bias_voltage_vec[0]), &(eff_gain_vec[0]), 0, &(eff_gain_err_vec[0]));
 
 				int bias_volatage_vector_size = bias_voltage_vec.size();
-	  		TF1 *fit = new TF1("fit","[0] + [1]*x", bias_voltage_vec[0]-0.25, bias_voltage_vec[bias_volatage_vector_size-1]+0.25);
+	  			TF1 *fit = new TF1("fit","[0] + [1]*x", bias_voltage_vec[0]-0.25, bias_voltage_vec[bias_volatage_vector_size-1]+0.3);
 
 				gStyle->SetOptStat(0100);
 				gStyle->SetOptFit(1111);
@@ -142,96 +166,98 @@ void plot_gain_vs_voltage(TString FileList="./List_of_files", TString savedir=".
 				gStyle->SetStatW(0.2);
 
 				gr_mean->SetTitle(histo_title);  
-				gr_mean->GetXaxis()->SetTitle("Bias Voltage");
-				gr_mean->GetYaxis()->SetTitle("Fitted Gain Value");
+				gr_mean->SetTitle(histo_title+"; Bias voltage [V]; Fitted effective gain [ADC/PE]");
 				
 				gr_mean->Draw("AP");
-	  		gr_mean->Fit(fit, "QR");  
+		  		gr_mean->Fit(fit, "QR");  
 
-	  		// store the fitting results. 
-	  		fit->SetParName(0, "Slope");
-	  		fit->SetParName(1, "Offset");
-				float slope, offset;
-			  slope = fit->GetParameter(1);  
-			  offset = fit->GetParameter(0); 
+		  		// store the fitting results. 
+		  		fit->SetParName(0, "Slope");
+		  		fit->SetParName(1, "Offset");
+				float slope  			= fit->GetParameter(1);  
+				float offset 			= fit->GetParameter(0); 
+				float slope_error = fit->GetParError(1);
 
-			  float voltage = target_voltage_cal(slope, offset, target_gain);
-			  outfile<<iChannel<<"\t"<<voltage<<std::endl;
+				histo_slope_effective_vs_bias->Fill(slope);
+				slope_err_per_channel_vec.at(iChannel)=slope_error;
+				slope_per_channel_vec.at(iChannel)=slope;
+				channel_ids.at(iChannel)=iChannel;
+
+				float calculated_eff_gain = calculate_gain_value(slope, offset, targeted_bias_setting);
+				outfile<<iChannel<<"\t"<<slope<<"\t"<<offset<<std::endl;
+				// targeted gain
+				outfile2<<iChannel<<"\t"<<calculate_bias_setting(slope, offset, targeted_preAmp)<<std::endl;
+				outfile3<<iChannel<<"\t"<<calculated_eff_gain<<std::endl;
+				//outfile2<<iChannel<<"\t"<<convertBiasVoltagetoSetting(calculate_bias_setting(slope, offset, targeted_preAmp))<<std::endl;
 
 				gSystem->Exec("mkdir -p "+savedir);
-				c1->SaveAs(Form(savedir+"/FEB_%i_channel_%i.pdf", FEB_vec[iFEB], iChannel));
+				//c1->SaveAs(Form(savedir+"/FEB_%i_channel_%i.pdf", FEB_vec[iFEB], iChannel));
 				c1->SaveAs(Form(savedir+"/FEB_%i_channel_%i.png", FEB_vec[iFEB], iChannel));
-
+				delete c1;
 			}
 			else{
-				std::cerr<<Form("Go check: FEB %i Channel %i", FEB_vec[iFEB], iChannel)<<std::endl;
-				//return;
+			  //std::cerr<<Form("Go check: FEB %i Channel %i", FEB_vec[iFEB], iChannel)<<std::endl;
+			  outfile<<iChannel<<"\t"<<"**DEAD**"<<std::endl;
+			  outfile2<<iChannel<<"\t"<<"**DEAD**"<<std::endl;
+			  outfile3<<iChannel<<"\t"<<"**DEAD**"<<std::endl;
+			  potential_dead_channel_map.insert(std::make_pair(FEB_vec[iFEB], iChannel));
 			}
-		}
+		}//end of channel map
 		outfile.close(); 
+		outfile2.close(); 
+		outfile3.close(); 
+		auto c1 = new TCanvas("c1","",200,10,800,500);
+
+		TGraphErrors* gr_mean = new TGraphErrors(channel_ids.size(), &(channel_ids[0]), &(slope_per_channel_vec[0]), 0,  &(slope_err_per_channel_vec[0]));//&(gain_err_vec[0])
+		TString histo_title= Form("FEB: %i", FEB_vec[iFEB]);
+		gr_mean->SetTitle(histo_title+" ; Channel ID ; Effective gain vs. bias [ADC/PE/V]");
+		gr_mean->Draw("AP");
+		gr_mean->GetYaxis()->SetRangeUser(0,50);
+		//c1->SaveAs(Form(savedir+"/FEB_%i_slope.pdf", FEB_vec[iFEB]));
+		c1->SaveAs(Form(savedir+"/slope_vs_channel_FEB_%i.png", FEB_vec[iFEB]));
+		delete c1;
+	}// end of FEB loop
+
+	auto canvas = new TCanvas("canvas","",200,10,800,500);
+	//histo_slope_effective_vs_bias->SetStats(0);
+	histo_slope_effective_vs_bias->Draw("E1");
+	histo_slope_effective_vs_bias->Draw("hist same");
+	histo_slope_effective_vs_bias->SetStats(0);
+	histo_slope_effective_vs_bias->SetLineWidth(3);
+	histo_slope_effective_vs_bias->SetTitle(" ; Effective gain vs. bias [ADC/PE/V]; CRT channels");
+	canvas->SaveAs(savedir+"/histo_slope_effective_vs_bias.png");
+	delete canvas;
+
+	auto canvas2 = new TCanvas("canvas","",200,10,800,500);
+	TLegend *leg = new TLegend(0.2, 0.7, 0.9, 0.9);//0.55, 0.2, 0.9, 0.3
+	leg->SetTextFont(62);  leg->SetTextSize(0.04); leg->SetTextFont(62);
+	leg->SetBorderSize(0); leg->SetFillStyle(0);   leg->SetNColumns(2);
+	for(int ihisto=0; ihisto<histo_eff_gain_vec.size(); ihisto++){
+		histo_eff_gain_vec.at(ihisto)->SetLineColor(30+ihisto*6);
+		histo_eff_gain_vec.at(ihisto)->SetLineWidth(3);
+		histo_eff_gain_vec.at(ihisto)->SetStats(0);
+		leg->AddEntry(histo_eff_gain_vec.at(ihisto), histo_eff_gain_vec.at(ihisto)->GetTitle(), "lep");
+
+		if (ihisto==0) {
+			histo_eff_gain_vec.at(ihisto)->Draw("E1");	
+			histo_eff_gain_vec.at(ihisto)->Draw("hist same");		
+			histo_eff_gain_vec.at(ihisto)->GetYaxis()->SetRangeUser(0, histo_eff_gain_vec.at(ihisto)->GetMaximum()+80);
+			histo_eff_gain_vec.at(ihisto)->SetTitle(" ; Effective gain [ADC/PE]; CRT channels");
+		}else { 
+			histo_eff_gain_vec.at(ihisto)->Draw("E1 same");
+			histo_eff_gain_vec.at(ihisto)->Draw("hist same");
 	}
-}
 
+	}
+	leg->Draw("same");
 
+	canvas2->SaveAs(savedir+"/histo_effective_gains.png");
+	delete canvas2;
 
-float target_voltage_cal(float slope, float offset, float gain){
-		return (gain-offset)/slope;
-}
-TChain * CreateChainFromList_opt(TString ListFileName, std::string ChainName, bool DoCheck)
-{
-  ifstream InputFile(ListFileName);
-  std::string FileName;
+	// Print out the detected dead channels. 
+	std::cout<<std::endl<<"Potentially dead channel: "<<std::endl;
+	for (auto const& [ifeb, ichannel] : potential_dead_channel_map){
+		std::cout<<Form("FEB %i Channel %i", ifeb, ichannel)<<std::endl;
+	}
 
-  TChain * TheChain = new TChain(ChainName.c_str());
-  if(!DoCheck)
-    {
-      while(getline(InputFile, FileName))
-        {
-          //FileName=BaseDirectory+FileName;
-          std::cout<<"Adding file "<< FileName.c_str()<<" to the TChain"<<std::endl;
-          TheChain->Add(FileName.c_str());
-        }
-    }
-  else
-    {
-      while(getline(InputFile, FileName))
-        {
-          //FileName=BaseDirectory+FileName;
-          TFile*f=TFile::Open(FileName.c_str());
-          if(f->Get(ChainName.c_str()))
-            {
-              TheChain->Add(FileName.c_str());
-              std::cout<<"Adding file "<< FileName.c_str()<<" to the TChain"<<std::endl;
-            }
-          else std::cout<<"Chain " <<ChainName << " not found in file " << FileName<<std::endl;
-        }
-
-
-    }
-  return TheChain;
-}
-
-void define_plot_style(){
-	// declare the global plotting style.
-	gStyle->SetTitleFont(62, "TXYZ");
-	gStyle->SetTitleSize(0.05,"TXYZ");
-
-	// LABELS SIZE AND FONT
-	gStyle->SetLabelFont(62, "TXYZ");
-	gStyle->SetLabelSize(0.05,"TXYZ");
-
-	// AXIS OFFSETS AND SIZES
-	gStyle->SetTitleXOffset(0.80);
-	gStyle->SetTitleXSize(0.06);
-
-	gStyle->SetTitleYOffset(0.65);
-	gStyle->SetTitleYSize(0.06);
-
-	gStyle->SetMarkerStyle(33);
-	gStyle->SetMarkerSize(1.5);
-	gStyle->SetLineColor(46);
-	gStyle->SetLineWidth(2);
-	// Draw horizontal and vertical grids
-	gStyle->SetPadGridX(kTRUE);                     
-	gStyle->SetPadGridY(kTRUE);
 }
