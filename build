@@ -1,6 +1,6 @@
 echo $MRB_BUILDDIR
 cd   $MRB_BUILDDIR
 
-make install
+make install | grep -v "Up-to-date"
 cd
 cd jiaoyang/single_PE_search
