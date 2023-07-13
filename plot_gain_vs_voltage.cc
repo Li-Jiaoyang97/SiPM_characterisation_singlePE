@@ -1,6 +1,6 @@
 #include "functions.cc"
 
-void plot_gain_vs_voltage(TString FileList="./List_of_files", TString savedir="./gain_vs_bias_voltage", TString savedir2="./raw_gain_vs_bias_voltage", float targeted_bias_setting=180., float targeted_preAmp=60.){	
+void plot_gain_vs_voltage(TString FileList="./List_of_files", TString savedir="./gain_vs_bias_voltage", TString savedir2="./raw_gain_vs_bias_voltage", float targeted_bias_setting=180., float targeted_effGain=60.){	
 	gSystem->Exec("rm "+savedir+"*");
 	gSystem->Exec("rm "+savedir2+"*");
 	define_plot_style();
@@ -39,17 +39,17 @@ void plot_gain_vs_voltage(TString FileList="./List_of_files", TString savedir=".
 
 	// start to loop.
 	for (int iFEB=0; iFEB<FEB_vec.size(); iFEB++){ // loop through the FEBs FEB_vec.size()
-		ofstream outfile;
-		outfile.open(Form("./FEB%i.txt", FEB_vec[iFEB]));
-		outfile<<"Channel \t fitted_effective_gain \t fitted_offset"<<std::endl;
+		//ofstream outfile;
+		//outfile.open(Form("./fitted_effGain_offset_FEB%i.txt", FEB_vec[iFEB])); // this file saves the fitted parameters when fitting eff_gain vs. bias setting, --> slope and offset is going to be saved.
+		//outfile<<"Channel \t fitted_effective_gain \t fitted_offset"<<std::endl;
+
+		ofstream outfile1;
+		outfile1.open(Form("./target_bias_setting_with_eff_gain_FEB%i.txt", FEB_vec[iFEB])); // this file saves the targeted bias setting when eff_gain provided.
+		outfile1<<"Channel \t bias_setting"<<std::endl;
 
 		ofstream outfile2;
-		outfile2.open(Form("./target_bias_setting_FEB%i.txt", FEB_vec[iFEB]));
-		outfile2<<"Channel \t bias_setting"<<std::endl;
-
-		ofstream outfile3;
-		outfile3.open(Form("./effective_gain_with_target_bias_setting_FEB%i.txt", FEB_vec[iFEB]));
-		//outfile3<<"Channel \t effective_gain"<<std::endl;
+		outfile2.open(Form("./effective_gain_with_target_bias_setting_FEB%i.txt", FEB_vec[iFEB]));
+		outfile2<<"Channel \t effective_gain"<<std::endl;
 		// vectors to save all slope 
 		std::vector<double> slope_per_channel_vec(32);
 		std::vector<double> slope_err_per_channel_vec(32);
@@ -184,11 +184,11 @@ void plot_gain_vs_voltage(TString FileList="./List_of_files", TString savedir=".
 				channel_ids.at(iChannel)=iChannel;
 
 				float calculated_eff_gain = calculate_gain_value(slope, offset, targeted_bias_setting);
-				outfile<<iChannel<<"\t"<<slope<<"\t"<<offset<<std::endl;
+				//outfile<<iChannel<<"\t"<<slope<<"\t"<<offset<<std::endl;
 				// targeted gain
-				outfile2<<iChannel<<"\t"<<calculate_bias_setting(slope, offset, targeted_preAmp)<<std::endl;
-				outfile3<<iChannel<<"\t"<<calculated_eff_gain<<std::endl;
-				//outfile2<<iChannel<<"\t"<<convertBiasVoltagetoSetting(calculate_bias_setting(slope, offset, targeted_preAmp))<<std::endl;
+				outfile1<<iChannel<<"\t"<<calculate_bias_setting(slope, offset, targeted_effGain)<<std::endl;
+				outfile2<<iChannel<<"\t"<<calculated_eff_gain<<std::endl;
+				//outfile1<<iChannel<<"\t"<<convertBiasVoltagetoSetting(calculate_bias_setting(slope, offset, targeted_effGain))<<std::endl;
 
 				gSystem->Exec("mkdir -p "+savedir);
 				//c1->SaveAs(Form(savedir+"/FEB_%i_channel_%i.pdf", FEB_vec[iFEB], iChannel));
@@ -197,15 +197,15 @@ void plot_gain_vs_voltage(TString FileList="./List_of_files", TString savedir=".
 			}
 			else{
 			  //std::cerr<<Form("Go check: FEB %i Channel %i", FEB_vec[iFEB], iChannel)<<std::endl;
-			  outfile<<iChannel<<"\t"<<"**DEAD**"<<std::endl;
+			  //outfile<<iChannel<<"\t"<<"**DEAD**"<<std::endl;
+			  outfile1<<iChannel<<"\t"<<"**DEAD**"<<std::endl;
 			  outfile2<<iChannel<<"\t"<<"**DEAD**"<<std::endl;
-			  outfile3<<iChannel<<"\t"<<"**DEAD**"<<std::endl;
 			  potential_dead_channel_map.insert(std::make_pair(FEB_vec[iFEB], iChannel));
 			}
 		}//end of channel map
-		outfile.close(); 
+		//outfile.close(); 
+		outfile1.close(); 
 		outfile2.close(); 
-		outfile3.close(); 
 		auto c1 = new TCanvas("c1","",200,10,800,500);
 
 		TGraphErrors* gr_mean = new TGraphErrors(channel_ids.size(), &(channel_ids[0]), &(slope_per_channel_vec[0]), 0,  &(slope_err_per_channel_vec[0]));//&(gain_err_vec[0])
