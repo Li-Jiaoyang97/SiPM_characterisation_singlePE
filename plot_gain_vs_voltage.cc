@@ -33,7 +33,8 @@ void plot_gain_vs_voltage(TString FileList="./List_of_files", TString savedir=".
 	std::sort(bias_setting_save_vec.begin(), bias_setting_save_vec.end());
 	bias_setting_save_vec.erase(std::unique(bias_setting_save_vec.begin(), bias_setting_save_vec.end()), bias_setting_save_vec.end()); // Remove duplicate values from vector
 
-	TH1F * histo_slope_effective_vs_bias = new TH1F("histo_slope_effective_vs_bias", "", 20, 0, 50);
+	TH1F * histo_slope_effective_vs_bias = new TH1F("histo_slope_effective_vs_bias", "", 20, 0, 1); // if use bias setting
+	//TH1F * histo_slope_effective_vs_bias = new TH1F("histo_slope_effective_vs_bias", "", 20, 0, 50); // if use bias voltage
 	std::vector<TH1F*> histo_eff_gain_vec = declare_histo_vec("h_effctive_gain", bias_setting_save_vec.size(), bias_setting_save_vec, 30, 30, 120);
 	std::map<int,int> potential_dead_channel_map;
 
@@ -58,20 +59,20 @@ void plot_gain_vs_voltage(TString FileList="./List_of_files", TString savedir=".
 		//int channel_print_count(0);
 		for (int iChannel = 0; iChannel < 32; iChannel++){
 			
-			std::vector<float> bias_voltage_vec;
+			std::vector<float> bias_setting_vec;
 			std::vector<float> eff_gain_vec;
 			std::vector<float> eff_gain_err_vec;
 
 			std::vector<float> eff_gain_vec_raw;
 			std::vector<float> eff_gain_err_vec_raw;
-			std::vector<float> bias_voltage_vec_raw;
+			std::vector<float> bias_setting_vec_raw;
 
 			bool doFitPlot=false;
 			for(auto i=0; i<nEnt; i++){
 				chain->GetEntry(i);
 				if (febid== FEB_vec[iFEB] && channel==iChannel ){
-					bias_voltage_vec_raw.push_back(bias_setting);
-					//bias_voltage_vec_raw.push_back(convertBiasSettingtoVoltage(bias_setting));
+					bias_setting_vec_raw.push_back(bias_setting);
+					bias_setting_vec_raw.push_back(convertBiasSettingtoVoltage(bias_setting));
 					eff_gain_vec_raw.push_back(eff_gain);
 					eff_gain_err_vec_raw.push_back(eff_gain_err);
 					
@@ -79,8 +80,8 @@ void plot_gain_vs_voltage(TString FileList="./List_of_files", TString savedir=".
 					//if ( (ndf!=0 && chisqr/ndf < 100.0) || (ndf==0) ){
 						float targeted_eff_gain=0.4*bias_setting;
 						if (eff_gain<targeted_eff_gain+25 && eff_gain>targeted_eff_gain-25){
-							bias_voltage_vec.push_back(bias_setting);
-							//bias_voltage_vec.push_back(convertBiasSettingtoVoltage(bias_setting));
+							bias_setting_vec.push_back(bias_setting);
+							//bias_setting_vec.push_back(convertBiasSettingtoVoltage(bias_setting));
 							eff_gain_vec.push_back(eff_gain);
 							eff_gain_err_vec.push_back(eff_gain_err);
 							doFitPlot=true;
@@ -95,7 +96,7 @@ void plot_gain_vs_voltage(TString FileList="./List_of_files", TString savedir=".
 
 			TString histo_title= Form("FEB: %i, channel: %i", FEB_vec[iFEB], iChannel);
 			auto c2 = new TCanvas("c2","",200,10,800,500);
-			TGraphErrors* gr_mean2 = new TGraphErrors(bias_voltage_vec_raw.size(), &(bias_voltage_vec_raw[0]), &(eff_gain_vec_raw[0]), 0, &(eff_gain_err_vec_raw[0]));
+			TGraphErrors* gr_mean2 = new TGraphErrors(bias_setting_vec_raw.size(), &(bias_setting_vec_raw[0]), &(eff_gain_vec_raw[0]), 0, &(eff_gain_err_vec_raw[0]));
 
 			gr_mean2->SetTitle();  
 			gr_mean2->SetTitle(histo_title+"; Bias; Fitted effective gain");
@@ -153,10 +154,10 @@ void plot_gain_vs_voltage(TString FileList="./List_of_files", TString savedir=".
 
 				// Save the plots without abondoning points.
 				auto c1 = new TCanvas("c1","",200,10,800,500);
-				TGraphErrors* gr_mean = new TGraphErrors(bias_voltage_vec.size(), &(bias_voltage_vec[0]), &(eff_gain_vec[0]), 0, &(eff_gain_err_vec[0]));
+				TGraphErrors* gr_mean = new TGraphErrors(bias_setting_vec.size(), &(bias_setting_vec[0]), &(eff_gain_vec[0]), 0, &(eff_gain_err_vec[0]));
 
-				int bias_volatage_vector_size = bias_voltage_vec.size();
-	  			TF1 *fit = new TF1("fit","[0] + [1]*x", bias_voltage_vec[0]-0.25, bias_voltage_vec[bias_volatage_vector_size-1]+0.3);
+				int bias_volatage_vector_size = bias_setting_vec.size();
+	  			TF1 *fit = new TF1("fit","[0] + [1]*x", bias_setting_vec[0]-0.25, bias_setting_vec[bias_volatage_vector_size-1]+0.3);
 
 				gStyle->SetOptStat(0100);
 				gStyle->SetOptFit(1111);
@@ -166,7 +167,7 @@ void plot_gain_vs_voltage(TString FileList="./List_of_files", TString savedir=".
 				gStyle->SetStatW(0.2);
 
 				gr_mean->SetTitle(histo_title);  
-				gr_mean->SetTitle(histo_title+"; Bias voltage [V]; Fitted effective gain [ADC/PE]");
+				gr_mean->SetTitle(histo_title+"; Bias setting; Fitted effective gain [ADC/PE]");
 				
 				gr_mean->Draw("AP");
 		  		gr_mean->Fit(fit, "QR");  
@@ -174,8 +175,8 @@ void plot_gain_vs_voltage(TString FileList="./List_of_files", TString savedir=".
 		  		// store the fitting results. 
 		  		fit->SetParName(0, "Slope");
 		  		fit->SetParName(1, "Offset");
-				float slope  			= fit->GetParameter(1);  
-				float offset 			= fit->GetParameter(0); 
+				float slope  	  = fit->GetParameter(1);  
+				float offset 	  = fit->GetParameter(0); 
 				float slope_error = fit->GetParError(1);
 
 				histo_slope_effective_vs_bias->Fill(slope);
@@ -212,7 +213,8 @@ void plot_gain_vs_voltage(TString FileList="./List_of_files", TString savedir=".
 		TString histo_title= Form("FEB: %i", FEB_vec[iFEB]);
 		gr_mean->SetTitle(histo_title+" ; Channel ID ; Effective gain vs. bias [ADC/PE/V]");
 		gr_mean->Draw("AP");
-		gr_mean->GetYaxis()->SetRangeUser(0,50);
+		gr_mean->GetYaxis()->SetRangeUser(0,1); // if use bias settings. 
+		//gr_mean->GetYaxis()->SetRangeUser(0,50); // if use bias voltage.
 		//c1->SaveAs(Form(savedir+"/FEB_%i_slope.pdf", FEB_vec[iFEB]));
 		c1->SaveAs(Form(savedir+"/slope_vs_channel_FEB_%i.png", FEB_vec[iFEB]));
 		delete c1;
